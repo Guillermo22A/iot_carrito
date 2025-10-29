@@ -2,9 +2,8 @@
 // 1. CONFIGURACIÓN GLOBAL
 // ===================================================================
 const SERVIDOR_EC2_URL = "https://memo.micarrirobot.cc";
-let ID_DISPOSITIVO_ACTUAL = null; // ¡Ahora es dinámico!
+let ID_DISPOSITIVO_ACTUAL = null;
 
-// IDs de Operación
 const OP = {
   ADELANTE: 1, ATRAS: 2, DETENER: 3, VUELTA_AD_DER: 4, VUELTA_AD_IZQ: 5,
   VUELTA_AT_DER: 6, VUELTA_AT_IZQ: 7, GIRO_DER_90: 8, GIRO_IZQ_90: 9,
@@ -17,18 +16,17 @@ const OP = {
 // ===================================================================
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- Obtener elementos del DOM ---
+    // --- Elementos Comunes (pueden estar en ambas páginas) ---
     const log = document.getElementById('monitor-log');
     const conexionStatus = document.getElementById('conexion-status');
 
-    // --- NUEVO: Gestión de Dispositivos ---
+    // --- Elementos de la Página de Control (serán 'null' en monitor.html) ---
     const selectDevice = document.getElementById('device-select');
+    const btnCrearDispositivo = document.getElementById('btn-crear-dispositivo');
     const inputDeviceNombre = document.getElementById('device-nombre-nuevo');
     const inputDeviceIp = document.getElementById('device-ip-nuevo');
-    const btnCrearDispositivo = document.getElementById('btn-crear-dispositivo');
     const panelControlTitulo = document.getElementById('panel-control-titulo');
-
-    // Botones de Movimiento
+    
     const btnAdelante = document.getElementById('btn-adelante');
     const btnAtras = document.getElementById('btn-atras');
     const btnDetener = document.getElementById('btn-detener');
@@ -41,11 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGiroIzq360 = document.getElementById('btn-giro-izq-360');
     const btnGiroDer360 = document.getElementById('btn-giro-der-360');
 
-    // Elementos de Demo
     const btnEjecutarDemo = document.getElementById('btn-ejecutar-demo');
     const selectDemo = document.getElementById('demo-select');
 
-    // Formulario de Crear Demo
     const btnCrearDemo = document.getElementById('btn-crear-demo');
     const inputDemoNombre = document.getElementById('demo-nombre');
     const textareaDemoPasos = document.getElementById('demo-pasos');
@@ -58,13 +54,16 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`Intentando conectar con el servidor en ${SERVIDOR_EC2_URL}`);
     const socket = io(SERVIDOR_EC2_URL);
 
+    // --- Función para añadir mensajes al log (AHORA ES CONDICIONAL) ---
     function agregarLog(mensaje, tipo = 'info') {
-      const p = document.createElement('p');
-      if (tipo === 'error') p.style.color = 'red';
-      else if (tipo === 'success') p.style.color = 'green';
-      else if (tipo === 'comando') p.style.color = 'blue';
-      p.textContent = `[${new Date().toLocaleTimeString()}] ${mensaje}`;
-      log.prepend(p);
+      if (log) { // Solo si la página actual tiene el monitor-log
+        const p = document.createElement('p');
+        if (tipo === 'error') p.style.color = 'red';
+        else if (tipo === 'success') p.style.color = 'green';
+        else if (tipo === 'comando') p.style.color = 'blue';
+        p.textContent = `[${new Date().toLocaleTimeString()}] ${mensaje}`;
+        log.prepend(p);
+      }
     }
 
     // ===================================================================
@@ -72,27 +71,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
 
     socket.on('connect', () => {
-      conexionStatus.textContent = 'Estado: Conectado';
-      conexionStatus.className = 'text-success';
+      if (conexionStatus) { // Solo si el elemento existe en esta página
+        conexionStatus.textContent = 'Estado: Conectado';
+        conexionStatus.className = 'text-success';
+      }
       agregarLog('¡Conectado al servidor con éxito!', 'success');
-      // Cargar todo al conectar
-      cargarUltimosMovimientos();
-      cargarDemosDisponibles();
-      cargarDispositivos(); // ¡NUEVO!
+      
+      // --- Carga condicional de datos ---
+      if (log) cargarUltimosMovimientos();
+      if (selectDemo) cargarDemosDisponibles();
+      if (selectDevice) cargarDispositivos();
     });
 
     socket.on('disconnect', () => {
-      conexionStatus.textContent = 'Estado: Desconectado';
-      conexionStatus.className = 'text-danger';
+      if (conexionStatus) { // Solo si el elemento existe
+        conexionStatus.textContent = 'Estado: Desconectado';
+        conexionStatus.className = 'text-danger';
+      }
       agregarLog('Desconectado del servidor.', 'error');
     });
 
     socket.on('respuesta_conexion', (data) => agregarLog(`Servidor dice: ${data.mensaje}`));
     socket.on('error', (data) => agregarLog(`Error del servidor: ${data.mensaje}`, 'error'));
     socket.on('actualizacion_global_status', (data) => {
-      // Ahora solo mostramos logs del dispositivo seleccionado
-      if (data.id_dispositivo == ID_DISPOSITIVO_ACTUAL) {
-        agregarLog(`[PUSH] Dispositivo ${data.id_dispositivo} ahora está: ${data.status_texto}`);
+      // Si estamos en la página de monitor, mostramos todos los logs
+      // Si estamos en la de control, solo los del dispositivo activo
+      if (log && !ID_DISPOSITIVO_ACTUAL) { // Página de Monitor
+         agregarLog(`[PUSH] Disp ${data.id_dispositivo}: ${data.status_texto}`);
+      } else if (log && data.id_dispositivo == ID_DISPOSITIVO_ACTUAL) { // Página de Control
+         agregarLog(`[PUSH] Disp ${data.id_dispositivo}: ${data.status_texto}`);
       }
     });
     socket.on('demo_completada', (data) => {
@@ -100,80 +107,73 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     socket.on('nueva_demo_creada', (data) => {
         agregarLog(`¡Nueva demo disponible: "${data.nombre}"!`, 'success');
-        const option = document.createElement('option');
-        option.value = data.id;
-        option.textContent = data.nombre;
-        selectDemo.prepend(option);
+        if (selectDemo) { // Solo si existe el dropdown en esta página
+          const option = document.createElement('option');
+          option.value = data.id;
+          option.textContent = data.nombre;
+          selectDemo.prepend(option);
+        }
     });
-    
-    // --- ¡NUEVO LISTENER! ---
     socket.on('nuevo_dispositivo_creado', (data) => {
         agregarLog(`¡Nuevo dispositivo registrado: "${data.nombre}"!`, 'success');
-        const option = document.createElement('option');
-        option.value = data.id;
-        option.textContent = data.nombre;
-        selectDevice.appendChild(option); // Añadir al dropdown
+        if (selectDevice) { // Solo si existe el dropdown en esta página
+          const option = document.createElement('option');
+          option.value = data.id;
+          option.textContent = data.nombre;
+          selectDevice.appendChild(option);
+        }
     });
-
 
     // ===================================================================
     // 5. ENVIAR COMANDOS AL SERVIDOR (Socket.emit)
     // ===================================================================
 
     function enviarComando(idOperacion) {
-      // ¡Validación Clave!
       if (!ID_DISPOSITIVO_ACTUAL) {
-        agregarLog("Error: No hay ningún dispositivo seleccionado.", 'error');
         alert("Por favor, selecciona un dispositivo activo en el panel de 'Gestión de Dispositivos'.");
         return;
       }
-      
       const data = { 
         id_operacion: idOperacion, 
-        id_dispositivo: ID_DISPOSITIVO_ACTUAL // Usar la variable dinámica
+        id_dispositivo: ID_DISPOSITIVO_ACTUAL
       };
-      
       socket.emit('comando_desde_frontend', data);
+      // El log se mostrará solo si el monitor está en la misma página
       agregarLog(`Enviando comando: ${idOperacion} a Disp: ${ID_DISPOSITIVO_ACTUAL}`, 'comando');
     }
 
-    // --- Asignar eventos a botones de movimiento (Sin cambios) ---
-    btnAdelante.onclick = () => enviarComando(OP.ADELANTE);
-    btnAtras.onclick = () => enviarComando(OP.ATRAS);
-    btnDetener.onclick = () => enviarComando(OP.DETENER);
-    btnVueltaAdIzq.onclick = () => enviarComando(OP.VUELTA_AD_IZQ);
-    btnVueltaAdDer.onclick = () => enviarComando(OP.VUELTA_AD_DER);
-    btnVueltaAtIzq.onclick = () => enviarComando(OP.VUELTA_AT_IZQ);
-    btnVueltaAtDer.onclick = () => enviarComando(OP.VUELTA_AT_DER);
-    btnGiroIzq90.onclick = () => enviarComando(OP.GIRO_IZQ_90);
-    btnGiroDer90.onclick = () => enviarComando(OP.GIRO_DER_90);
-    btnGiroIzq360.onclick = () => enviarComando(OP.GIRO_IZQ_360);
-    btnGiroDer360.onclick = () => enviarComando(OP.GIRO_DER_360);
+    // --- Asignar eventos (SOLO SI LOS BOTONES EXISTEN) ---
+    if (btnAdelante) btnAdelante.onclick = () => enviarComando(OP.ADELANTE);
+    if (btnAtras) btnAtras.onclick = () => enviarComando(OP.ATRAS);
+    if (btnDetener) btnDetener.onclick = () => enviarComando(OP.DETENER);
+    if (btnVueltaAdIzq) btnVueltaAdIzq.onclick = () => enviarComando(OP.VUELTA_AD_IZQ);
+    if (btnVueltaAdDer) btnVueltaAdDer.onclick = () => enviarComando(OP.VUELTA_AD_DER);
+    if (btnVueltaAtIzq) btnVueltaAtIzq.onclick = () => enviarComando(OP.VUELTA_AT_IZQ);
+    if (btnVueltaAtDer) btnVueltaAtDer.onclick = () => enviarComando(OP.VUELTA_AT_DER);
+    if (btnGiroIzq90) btnGiroIzq90.onclick = () => enviarComando(OP.GIRO_IZQ_90);
+    if (btnGiroDer90) btnGiroDer90.onclick = () => enviarComando(OP.GIRO_DER_90);
+    if (btnGiroIzq360) btnGiroIzq360.onclick = () => enviarComando(OP.GIRO_IZQ_360);
+    if (btnGiroDer360) btnGiroDer360.onclick = () => enviarComando(OP.GIRO_DER_360);
 
-    // --- Asignar evento al botón de EJECUTAR DEMO ---
-    btnEjecutarDemo.onclick = () => {
-        const idDemo = selectDemo.value;
-        const nombreDemo = selectDemo.options[selectDemo.selectedIndex].text;
-        
-        // ¡Validación Clave!
-        if (!ID_DISPOSITIVO_ACTUAL) {
-            agregarLog("Error: No hay ningún dispositivo seleccionado.", 'error');
-            alert("Por favor, selecciona un dispositivo activo primero.");
-            return;
-        }
-        if (!idDemo) {
-            agregarLog('Por favor, selecciona una demo válida.', 'error');
-            return;
-        }
-        
-        if (confirm(`¿Iniciar demo: "${nombreDemo}" en el Dispositivo ${ID_DISPOSITIVO_ACTUAL}?`)) {
-            agregarLog(`Iniciando demo "${nombreDemo}" (ID: ${idDemo})...`, 'comando');
-            socket.emit('ejecutar_demo', {
-                id_secuencia: idDemo,
-                id_dispositivo: ID_DISPOSITIVO_ACTUAL // Usar la variable dinámica
-            });
-        }
-    };
+    if (btnEjecutarDemo) {
+      btnEjecutarDemo.onclick = () => {
+          const idDemo = selectDemo.value;
+          const nombreDemo = selectDemo.options[selectDemo.selectedIndex].text;
+          if (!ID_DISPOSITIVO_ACTUAL) {
+              alert("Por favor, selecciona un dispositivo activo primero."); return;
+          }
+          if (!idDemo) {
+              alert('Por favor, selecciona una demo válida.'); return;
+          }
+          if (confirm(`¿Iniciar demo: "${nombreDemo}" en el Dispositivo ${ID_DISPOSITIVO_ACTUAL}?`)) {
+              agregarLog(`Iniciando demo "${nombreDemo}" (ID: ${idDemo})...`, 'comando');
+              socket.emit('ejecutar_demo', {
+                  id_secuencia: idDemo,
+                  id_dispositivo: ID_DISPOSITIVO_ACTUAL
+              });
+          }
+      };
+    }
 
     // ===================================================================
     // 6. OBTENER DATOS INICIALES (Fetch Async/Await)
@@ -216,22 +216,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- ¡NUEVA FUNCIÓN! ---
     async function cargarDispositivos() {
         agregarLog('Cargando dispositivos registrados...');
         try {
             const response = await fetch(`${SERVIDOR_EC2_URL}/api/dispositivos`);
             if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-            const dispositivos = await response.json(); // [{id: 1, nombre: "Carrito Alfa"}]
-
-            selectDevice.innerHTML = ''; // Limpiar dropdown
+            const dispositivos = await response.json();
             selectDevice.innerHTML = '<option value="">-- Selecciona un Dispositivo --</option>';
-            
             if (dispositivos.length === 0) {
                 selectDevice.innerHTML = '<option value="">No hay dispositivos</option>';
                 return;
             }
-
             dispositivos.forEach(dev => {
                 const option = document.createElement('option');
                 option.value = dev.id;
@@ -239,13 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectDevice.appendChild(option);
             });
             agregarLog('Lista de dispositivos actualizada.', 'success');
-
         } catch (error) {
             agregarLog(`Error al cargar dispositivos: ${error.message}`, 'error');
             selectDevice.innerHTML = '<option value="">Error al cargar</option>';
         }
     }
-
 
     // ===================================================================
     // 7. CREAR NUEVOS OBJETOS (Fetch)
@@ -254,7 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function crearNuevaDemo() {
       const nombre = inputDemoNombre.value.trim();
       const pasosCrudos = textareaDemoPasos.value.trim();
-      
       if (!nombre || !pasosCrudos) {
         agregarLog("Error: El nombre y los pasos son obligatorios.", 'error'); return;
       }
@@ -262,7 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (pasosArray.length === 0) {
         agregarLog("Error: Debes añadir al menos un paso válido.", 'error'); return;
       }
-
       agregarLog(`Creando demo: ${nombre}...`, 'comando');
       try {
         const response = await fetch(`${SERVIDOR_EC2_URL}/api/demos/crear`, {
@@ -275,24 +266,18 @@ document.addEventListener('DOMContentLoaded', () => {
           agregarLog(`¡Demo "${nombre}" (ID: ${data.id_secuencia}) creada con éxito!`, 'success');
           inputDemoNombre.value = '';
           textareaDemoPasos.value = '';
-        } else {
-          throw new Error(data.error || 'Error desconocido');
-        }
+        } else { throw new Error(data.error || 'Error desconocido'); }
       } catch (error) {
         agregarLog(`Error al crear demo: ${error.message}`, 'error');
       }
     }
     
-    // --- ¡NUEVA FUNCIÓN! ---
     async function crearNuevoDispositivo() {
         const nombre = inputDeviceNombre.value.trim();
-        const ip = inputDeviceIp.value.trim() || null; // Enviar null si está vacío
-
+        const ip = inputDeviceIp.value.trim() || null;
         if (!nombre) {
-            agregarLog("Error: El nombre del dispositivo es obligatorio.", 'error');
-            return;
+            agregarLog("Error: El nombre del dispositivo es obligatorio.", 'error'); return;
         }
-
         agregarLog(`Registrando dispositivo: ${nombre}...`, 'comando');
         try {
             const response = await fetch(`${SERVIDOR_EC2_URL}/api/dispositivos/crear`, {
@@ -301,16 +286,11 @@ document.addEventListener('DOMContentLoaded', () => {
               body: JSON.stringify({ nombre: nombre, ip: ip }),
             });
             const data = await response.json();
-
             if (response.ok) {
               agregarLog(`¡Dispositivo "${nombre}" (ID: ${data.dispositivo.id}) creado con éxito!`, 'success');
-              // Limpiar formulario
               inputDeviceNombre.value = '';
               inputDeviceIp.value = '';
-              // No necesitamos recargar, el evento push 'nuevo_dispositivo_creado' lo hará
-            } else {
-              throw new Error(data.error || 'Error desconocido');
-            }
+            } else { throw new Error(data.error || 'Error desconocido'); }
         } catch (error) {
             agregarLog(`Error al crear dispositivo: ${error.message}`, 'error');
         }
@@ -320,19 +300,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8. ASIGNACIÓN DE EVENTOS (LISTENERS)
     // ===================================================================
     
-    btnCrearDemo.onclick = crearNuevaDemo;
-    btnCrearDispositivo.onclick = crearNuevoDispositivo; // ¡NUEVO!
+    // Solo asignar listeners si los botones existen en la página actual
+    if (btnCrearDemo) btnCrearDemo.onclick = crearNuevaDemo;
+    if (btnCrearDispositivo) btnCrearDispositivo.onclick = crearNuevoDispositivo;
 
-    // --- ¡NUEVO! Listener para el dropdown de dispositivos ---
-    selectDevice.onchange = (e) => {
-        ID_DISPOSITIVO_ACTUAL = e.target.value; // Actualizar la variable global
-        if (ID_DISPOSITIVO_ACTUAL) {
-            const nombreDisp = e.target.options[e.target.selectedIndex].text;
-            panelControlTitulo.textContent = `Panel de Control (Activo: ${nombreDisp})`;
-            agregarLog(`Dispositivo ${nombreDisp} (ID: ${ID_DISPOSITIVO_ACTUAL}) seleccionado.`, 'success');
-        } else {
-            panelControlTitulo.textContent = 'Panel de Control (Selecciona un dispositivo)';
-        }
-    };
+    if (selectDevice) {
+      selectDevice.onchange = (e) => {
+          ID_DISPOSITIVO_ACTUAL = e.target.value; // Actualizar la variable global
+          if (ID_DISPOSITIVO_ACTUAL) {
+              const nombreDisp = e.target.options[e.target.selectedIndex].text;
+              if (panelControlTitulo) panelControlTitulo.textContent = `Panel de Control (Activo: ${nombreDisp})`;
+              agregarLog(`Dispositivo ${nombreDisp} (ID: ${ID_DISPOSITIVO_ACTUAL}) seleccionado.`, 'success');
+          } else {
+              if (panelControlTitulo) panelControlTitulo.textContent = 'Panel de Control (Selecciona un dispositivo)';
+          }
+      };
+    }
 
 }); // <-- FIN DEL WRAPPER DOMCONTENTLOADED
