@@ -15,7 +15,7 @@
     <div class="row g-4">
 
       <div class="col-lg-6">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm h-100">
           <div class="card-header bg-primary text-white">
             <h3>Panel de Control (Dispositivo: 1)</h3>
           </div>
@@ -56,7 +56,7 @@
       </div>
 
       <div class="col-lg-6">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm h-100">
           <div class="card-header bg-dark text-white">
             <h3>Monitor de Estado (Push)</h3>
           </div>
@@ -68,10 +68,43 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+      <div class="col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-header bg-success text-white">
+            <h3>Secuencias Demo</h3>
+          </div>
+          <div class="card-body text-center">
+            <p>Ejecutar una secuencia pre-programada.</p>
+            <button id="btn-demo-1" class="btn btn-success btn-lg">Ejecutar Demo 1</button>
+            </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-header bg-secondary text-white">
+            <h3>Crear Nueva Demo</h3>
+          </div>
+          <div class="card-body">
+            
+            <div class="mb-3">
+              <label for="demo-nombre" class="form-label">Nombre de la Demo:</label>
+              <input type="text" class="form-control" id="demo-nombre" placeholder="Ej: Mi Demo Rápida">
+            </div>
+            
+            <div class="mb-3">
+              <label for="demo-pasos" class="form-label">Pasos (uno por línea):</label>
+              <textarea class="form-control" id="demo-pasos" rows="4" placeholder="Adelante&#10;Giro 90° derecha&#10;Adelante&#10;Detener"></textarea>
+            </div>
+            
+            <button id="btn-crear-demo" class="btn btn-secondary w-100">Guardar Nueva Demo</button>
+            
+          </div>
+        </div>
+      </div>
+
+    </div> </div> <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
   
   <script src="app.js"></script>
 </body>
