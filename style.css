@@ -1,0 +1,23 @@
+#monitor-log {
+  height: 300px; /* Altura fija */
+  overflow-y: scroll; /* Scrollbar vertical si se llena */
+  background-color: #f8f9fa; /* Color de fondo claro */
+  border: 1px solid #dee2e6;
+  border-radius: .25rem;
+  padding: 12px;
+  font-family: 'Courier New', Courier, monospace; /* Fuente de "consola" */
+  font-size: 0.9rem;
+  /* Mantiene los mensajes nuevos arriba */
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+#monitor-log p {
+  margin: 0;
+  padding: 2px 0;
+  border-bottom: 1px dashed #e0e0e0;
+}
+
+#monitor-log p:first-child {
+  border-bottom: none;
+}
